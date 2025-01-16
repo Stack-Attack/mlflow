@@ -5,6 +5,7 @@ and is exposed in the :py:mod:`mlflow.tracking` module.
 """
 
 import contextlib
+import io
 import json
 import logging
 import os
@@ -2032,7 +2033,7 @@ class MlflowClient:
             yield tmp_path
             self.log_artifact(run_id, tmp_path, artifact_dir)
 
-    def _log_artifact_async_helper(self, run_id, artifact_file, artifact):
+    def _log_artifact_async_helper(self, run_id, artifact_file, filebuffer):
         """Log artifact asynchronously.
 
         Args:
@@ -2041,13 +2042,13 @@ class MlflowClient:
             artifact_file: The file path of the artifact relative to the run's directory.
                 The path should be in POSIX format, using forward slashes (/) as directory
                 separators.
-            artifact: The artifact to be logged.
+            filebuffer: The file buffer to log.
         """
         norm_path = posixpath.normpath(artifact_file)
         filename = posixpath.basename(norm_path)
         artifact_dir = posixpath.dirname(norm_path)
         artifact_dir = None if artifact_dir == "" else artifact_dir
-        self._tracking_client._log_artifact_async(run_id, filename, artifact_dir, artifact)
+        self._tracking_client._log_artifact_async(run_id, filename, artifact_dir, filebuffer)
 
     def log_text(self, run_id: str, text: str, artifact_file: str) -> None:
         """Log text as an artifact.
@@ -2412,12 +2413,16 @@ class MlflowClient:
                 with self._log_artifact_helper(run_id, image_filepath) as tmp_path:
                     image.save(tmp_path)
             else:
+                memfile = io.BytesIO()
+                image.save(memfile, format="PNG")
                 self._log_artifact_async_helper(run_id, image_filepath, image)
 
             if synchronous:
                 with self._log_artifact_helper(run_id, compressed_image_filepath) as tmp_path:
                     compressed_image.save(tmp_path)
             else:
+                memfile = io.BytesIO()
+                image.save(memfile, format="PNG")
                 self._log_artifact_async_helper(run_id, compressed_image_filepath, compressed_image)
 
             # Log tag indicating that the run includes logged image

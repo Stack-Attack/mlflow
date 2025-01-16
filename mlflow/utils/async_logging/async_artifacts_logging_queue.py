@@ -8,13 +8,13 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from queue import Empty, Queue
-from typing import TYPE_CHECKING, Callable, Union
+from typing import TYPE_CHECKING, Callable
 
 from mlflow.utils.async_logging.run_artifact import RunArtifact
 from mlflow.utils.async_logging.run_operations import RunOperations
 
 if TYPE_CHECKING:
-    import PIL.Image
+    pass
 
 _logger = logging.getLogger(__name__)
 
@@ -31,9 +31,7 @@ class AsyncArtifactsLoggingQueue:
             - artifact: The artifact to be logged.
     """
 
-    def __init__(
-        self, artifact_logging_func: Callable[[str, str, Union["PIL.Image.Image"]], None]
-    ) -> None:
+    def __init__(self, artifact_logging_func: Callable[[str, str], None]) -> None:
         self._queue: Queue[RunArtifact] = Queue()
         self._lock = threading.RLock()
         self._artifact_logging_func = artifact_logging_func
@@ -105,13 +103,13 @@ class AsyncArtifactsLoggingQueue:
             # Ignore empty queue exception
             return
 
-        def logging_func(run_artifact):
+        def logging_func(run_artifact: RunArtifact) -> None:
             try:
-                self._artifact_logging_func(
-                    filename=run_artifact.filename,
-                    artifact_path=run_artifact.artifact_path,
-                    artifact=run_artifact.artifact,
-                )
+                with run_artifact as local_file:
+                    self._artifact_logging_func(
+                        local_file,
+                        run_artifact.artifact_path,
+                    )
 
                 # Signal the artifact processing is done.
                 run_artifact.completion_event.set()
@@ -181,14 +179,15 @@ class AsyncArtifactsLoggingQueue:
         self._artifact_status_check_threadpool = None
         self._stop_data_logging_thread_event = threading.Event()
 
-    def log_artifacts_async(self, filename, artifact_path, artifact) -> RunOperations:
+    def log_artifacts_async(self, filename, artifact_path, filebuffer) -> RunOperations:
         """Asynchronously logs runs artifacts.
 
         Args:
             filename: Filename of the artifact to be logged.
             artifact_path: Directory within the run's artifact directory in which to log the
                 artifact.
-            artifact: The artifact to be logged.
+            artifact: The artifact to be logged from memory. Currently only PIL.Image.Image is supported
+            local_file: The local file to be logged.
 
         Returns:
             mlflow.utils.async_utils.RunOperations: An object that encapsulates the
@@ -204,7 +203,7 @@ class AsyncArtifactsLoggingQueue:
         artifact = RunArtifact(
             filename=filename,
             artifact_path=artifact_path,
-            artifact=artifact,
+            filebuffer=filebuffer,
             completion_event=threading.Event(),
         )
         self._queue.put(artifact)

@@ -850,7 +850,7 @@ class TrackingServiceClient:
         trace_data_json = json.dumps(trace_data.to_dict(), cls=TraceJSONEncoder, ensure_ascii=False)
         return artifact_repo.upload_trace_data(trace_data_json)
 
-    def _log_artifact_async(self, run_id, filename, artifact_path=None, artifact=None):
+    def _log_artifact_async(self, run_id, filename, artifact_path, filebuffer):
         """
         Write an artifact to the remote ``artifact_uri`` asynchronously.
 
@@ -858,10 +858,11 @@ class TrackingServiceClient:
             run_id: String ID of the run.
             filename: Filename of the artifact to be logged.
             artifact_path: If provided, the directory in ``artifact_uri`` to write to.
-            artifact: The artifact to be logged.
+            artifact: The artifact to be logged. One of ``artifact`` or ``local_file`` must be provided.
+            local_file: The path to the artifact to be logged.
         """
         artifact_repo = self._get_artifact_repo(run_id)
-        artifact_repo._log_artifact_async(filename, artifact_path, artifact)
+        artifact_repo._log_artifact_async(filename, artifact_path, filebuffer)
 
     def log_artifacts(self, run_id, local_dir, artifact_path=None):
         """Write a directory of files to the remote ``artifact_uri``.
